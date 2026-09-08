@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scan attendance — Verified</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="../css/theme.css">
+</head>
+<body class="min-h-screen">
+
+<header class="flex items-center justify-between px-6 sm:px-10 py-5" style="border-bottom:1px solid var(--line);">
+  <a href="dashboard.html" class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-md flex items-center justify-center" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7h4v4H3V7zm7 0h4v4h-4V7zm7 0h4v4h-4V7zM3 14h4v4H3v-4zm7 0h4v4h-4v-4z" fill="#3A2C08"/></svg>
+    </div>
+    <span class="font-display text-lg">Verified</span>
+  </a>
+  <a href="dashboard.html" class="btn-ghost text-sm py-2 px-4">Cancel</a>
+</header>
+
+<main class="max-w-md mx-auto px-6 py-10">
+
+  <!-- Step tracker -->
+  <div class="step-track mb-10">
+    <div class="step-dot active" id="dot-qr">1</div>
+    <div class="step-line" id="line-1"></div>
+    <div class="step-dot" id="dot-loc">2</div>
+    <div class="step-line" id="line-2"></div>
+    <div class="step-dot" id="dot-id">3</div>
+    <div class="step-line" id="line-3"></div>
+    <div class="step-dot" id="dot-done">✓</div>
+  </div>
+
+  <!-- QR SCAN STAGE -->
+  <section id="stageQr">
+    <h2 class="font-display text-2xl mb-2">Scan the QR code</h2>
+    <p class="text-sm mb-5" style="color:var(--muted);">Point your camera at the QR your teacher is displaying.</p>
+    <div id="qrReader" class="surface p-2 overflow-hidden"></div>
+    <p id="qrStatus" class="text-sm mt-4 text-center" style="color:var(--muted);"></p>
+  </section>
+
+  <!-- LOCATION STAGE -->
+  <section id="stageLocation" class="hidden text-center">
+    <h2 class="font-display text-2xl mb-2">Checking your location</h2>
+    <p class="text-sm mb-8" style="color:var(--muted);">We use your device GPS to confirm you're in the classroom area. This never leaves the moment it's checked.</p>
+    <div class="surface p-10 flex flex-col items-center gap-4">
+      <div class="w-14 h-14 rounded-full flex items-center justify-center" style="background:rgba(227,178,60,0.12);">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#E3B23C" stroke-width="2"><path d="M12 21s-7-6.5-7-11a7 7 0 0114 0c0 4.5-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+      </div>
+      <p id="locationStatus" class="text-sm" style="color:var(--muted);">Requesting your location…</p>
+    </div>
+  </section>
+
+  <!-- IDENTITY STAGE -->
+  <section id="stageIdentity" class="hidden">
+    <h2 class="font-display text-2xl mb-2">Confirm it's you</h2>
+    <p class="text-sm mb-5" style="color:var(--muted);">Follow the action below. This can't be passed with a photo or someone else's face.</p>
+    <div class="relative rounded-md overflow-hidden mb-5" style="aspect-ratio: 4/3; background:#000;">
+      <video id="video" autoplay muted playsinline class="w-full h-full object-cover" style="transform: scaleX(-1);"></video>
+      <canvas id="overlay" class="absolute inset-0 w-full h-full" style="transform: scaleX(-1);"></canvas>
+    </div>
+    <div class="surface p-4 text-center mb-4">
+      <p class="text-xs mb-1" style="color:var(--muted);">Do this now</p>
+      <p id="challengeText" class="font-display text-xl">—</p>
+    </div>
+    <p id="identityStatus" class="text-sm text-center" style="color:var(--muted);"></p>
+  </section>
+
+  <!-- SUCCESS STAGE -->
+  <section id="stageSuccess" class="hidden text-center">
+    <div class="surface p-10 flex flex-col items-center gap-4">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(63,191,159,0.15);">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#3FBF9F" stroke-width="2.5"><path d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <h2 class="font-display text-2xl">Attendance marked</h2>
+      <p class="text-sm" style="color:var(--muted);">All checks passed — QR, location, and identity.</p>
+      <a href="dashboard.html" class="btn-primary mt-2">Back to dashboard</a>
+    </div>
+  </section>
+
+  <!-- ERROR STAGE -->
+  <section id="stageError" class="hidden text-center">
+    <div class="surface p-10 flex flex-col items-center gap-4">
+      <div class="w-16 h-16 rounded-full flex items-center justify-center" style="background:rgba(226,96,79,0.15);">
+        <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#E2604F" stroke-width="2.5"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </div>
+      <h2 class="font-display text-2xl">Couldn't mark attendance</h2>
+      <p id="errorText" class="text-sm" style="color:var(--muted);">Something went wrong.</p>
+      <button id="retryBtn" class="btn-primary mt-2">Try again</button>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/guard.js"></script>
+<script src="../js/faceapi-helpers.js"></script>
+<script src="../js/scan.js"></script>
+</body>
+</html>

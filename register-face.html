@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Register your face — Verified</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="../css/theme.css">
+</head>
+<body class="min-h-screen flex items-center justify-center p-6">
+
+<div class="w-full max-w-md">
+  <div class="text-center mb-8">
+    <h1 class="font-display text-3xl mb-2">Register your face</h1>
+    <p class="text-sm" style="color:var(--muted);">This one-time reference is what your live scans get compared against. It's stored as a mathematical descriptor, not a photo.</p>
+  </div>
+
+  <div class="surface p-6">
+    <div class="relative rounded-md overflow-hidden mb-5" style="aspect-ratio: 4/3; background:#000;">
+      <video id="video" autoplay muted playsinline class="w-full h-full object-cover" style="transform: scaleX(-1);"></video>
+      <canvas id="overlay" class="absolute inset-0 w-full h-full" style="transform: scaleX(-1);"></canvas>
+      <div id="statusOverlay" class="absolute inset-0 flex items-center justify-center text-sm px-6 text-center" style="background: rgba(15,26,43,0.55);">
+        Loading face detection models…
+      </div>
+    </div>
+
+    <p id="hint" class="text-sm text-center mb-4" style="color:var(--muted);">Center your face in the frame with even lighting.</p>
+    <p id="errorMsg" class="text-sm text-center mb-4 hidden" style="color:var(--danger);"></p>
+
+    <button id="captureBtn" class="btn-primary w-full" disabled>Capture reference</button>
+  </div>
+
+  <p class="text-center text-sm mt-6">
+    <a href="dashboard.html" id="skipLink" class="underline" style="color:var(--muted);">Skip for now</a>
+  </p>
+</div>
+
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/guard.js"></script>
+<script src="../js/faceapi-helpers.js"></script>
+<script>
+  requireRole('student');
+
+  const video = document.getElementById('video');
+  const overlay = document.getElementById('overlay');
+  const statusOverlay = document.getElementById('statusOverlay');
+  const hint = document.getElementById('hint');
+  const captureBtn = document.getElementById('captureBtn');
+  const errorMsg = document.getElementById('errorMsg');
+
+  let latestDetection = null;
+  let stream = null;
+
+  async function init() {
+    try {
+      await FaceHelpers.loadModels();
+      stream = await navigator.mediaDevices.getUserMedia({ video: { width: 480, height: 360 } });
+      video.srcObject = stream;
+      statusOverlay.classList.add('hidden');
+      requestAnimationFrame(detectLoop);
+    } catch (err) {
+      statusOverlay.textContent = 'Could not access camera or load models: ' + err.message;
+    }
+  }
+
+  async function detectLoop() {
+    if (video.readyState === 4) {
+      const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions())
+        .withFaceLandmarks().withFaceDescriptor();
+
+      const ctx = overlay.getContext('2d');
+      overlay.width = video.videoWidth; overlay.height = video.videoHeight;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      if (detection) {
+        latestDetection = detection;
+        const box = detection.detection.box;
+        ctx.strokeStyle = '#3FBF9F';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(box.x, box.y, box.width, box.height);
+        hint.textContent = 'Face detected — hold still and capture.';
+        captureBtn.disabled = false;
+      } else {
+        latestDetection = null;
+        hint.textContent = 'No face detected. Center your face in the frame.';
+        captureBtn.disabled = true;
+      }
+    }
+    requestAnimationFrame(detectLoop);
+  }
+
+  captureBtn.addEventListener('click', async () => {
+    if (!latestDetection) return;
+    captureBtn.disabled = true;
+    captureBtn.textContent = 'Saving…';
+    errorMsg.classList.add('hidden');
+    try {
+      const descriptor = Array.from(latestDetection.descriptor);
+      await Api.post('/student/face/register', { descriptor });
+      if (stream) stream.getTracks().forEach(t => t.stop());
+      window.location.href = 'dashboard.html?faceRegistered=1';
+    } catch (err) {
+      errorMsg.textContent = err.message;
+      errorMsg.classList.remove('hidden');
+      captureBtn.disabled = false;
+      captureBtn.textContent = 'Capture reference';
+    }
+  });
+
+  init();
+</script>
+</body>
+</html>
