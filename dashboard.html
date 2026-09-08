@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teacher — Verified</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="../css/theme.css">
+</head>
+<body class="min-h-screen">
+
+<header class="flex items-center justify-between px-6 sm:px-10 py-5" style="border-bottom:1px solid var(--line);">
+  <div class="flex items-center gap-3">
+    <div class="w-8 h-8 rounded-md flex items-center justify-center" style="background:var(--accent);">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 7h4v4H3V7zm7 0h4v4h-4V7zm7 0h4v4h-4V7zM3 14h4v4H3v-4zm7 0h4v4h-4v-4z" fill="#3A2C08"/></svg>
+    </div>
+    <span class="font-display text-lg">Verified</span>
+  </div>
+  <div class="flex items-center gap-4">
+    <span id="userName" class="text-sm" style="color:var(--muted);"></span>
+    <button onclick="logout()" class="btn-ghost text-sm py-2 px-4">Sign out</button>
+  </div>
+</header>
+
+<main class="max-w-5xl mx-auto px-6 sm:px-10 py-10">
+
+  <!-- SETUP PANEL -->
+  <section id="setupPanel">
+    <h1 class="font-display text-3xl mb-1">Start attendance</h1>
+    <p style="color:var(--muted);" class="mb-8">Pick a class and subject to generate a live QR.</p>
+
+    <div class="surface p-6 max-w-lg">
+      <div class="mb-4">
+        <label class="field-label">Class</label>
+        <select id="classSelect" class="input-field"></select>
+      </div>
+      <div class="mb-4">
+        <label class="field-label">Subject</label>
+        <select id="subjectSelect" class="input-field"></select>
+      </div>
+      <p class="text-xs mb-4" style="color:var(--muted);">Uses the classroom location configured by your admin. If your class moved rooms today, use your current device location instead.</p>
+      <label class="flex items-center gap-2 text-sm mb-5">
+        <input type="checkbox" id="useMyLocation"> Use my current device location for this session
+      </label>
+      <p id="setupError" class="text-sm mb-4 hidden" style="color:var(--danger);"></p>
+      <button id="startBtn" class="btn-primary w-full">Start session</button>
+    </div>
+  </section>
+
+  <!-- LIVE SESSION PANEL -->
+  <section id="livePanel" class="hidden">
+    <div class="grid lg:grid-cols-2 gap-8">
+      <div class="paper-surface p-8 flex flex-col items-center">
+        <p class="text-sm mb-1" id="liveSubjectLabel" style="color:#5A5240;">Subject</p>
+        <div class="bg-white p-4 rounded-lg mb-4">
+          <img id="qrImage" class="w-64 h-64" alt="Attendance QR code">
+        </div>
+        <div class="w-full max-w-xs h-1.5 rounded-full overflow-hidden mb-2" style="background:#00000022;">
+          <div id="qrTimerBar" class="h-full" style="background:#3A2C08; width:100%; transition: width 1s linear;"></div>
+        </div>
+        <p class="text-xs" style="color:#5A5240;">Refreshes automatically — never share a screenshot of this.</p>
+      </div>
+
+      <div>
+        <div class="grid grid-cols-2 gap-4 mb-6">
+          <div class="surface p-5">
+            <div class="text-xs mb-1" style="color:var(--muted);">Present</div>
+            <div class="font-display text-4xl" id="presentCount">0</div>
+          </div>
+          <div class="surface p-5">
+            <div class="text-xs mb-1" style="color:var(--muted);">Session time</div>
+            <div class="font-display text-4xl" id="sessionTimer">00:00</div>
+          </div>
+        </div>
+
+        <div class="surface p-5 mb-6" style="max-height: 320px; overflow-y:auto;">
+          <div class="text-xs mb-3" style="color:var(--muted);">Marked present</div>
+          <div id="studentList" class="divide-y" style="border-color:var(--line);">
+            <p class="text-sm" style="color:var(--muted);">No students yet.</p>
+          </div>
+        </div>
+
+        <button id="stopBtn" class="btn-danger w-full">Stop session</button>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="../js/config.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/guard.js"></script>
+<script>
+  const user = requireRole('teacher');
+  document.getElementById('userName').textContent = user ? user.name : '';
+
+  let sessionId = null;
+  let qrPollTimer = null;
+  let attendancePollTimer = null;
+  let sessionStartedAt = null;
+  let sessionTimerInterval = null;
+  let classes = [];
+
+  async function loadClasses() {
+    try {
+      const { classes: c } = await Api.get('/teacher/classes');
+      classes = c;
+      const classSelect = document.getElementById('classSelect');
+      classSelect.innerHTML = classes.map(c => `<option value="${c._id}">${c.name}</option>`).join('') || '<option value="">No classes assigned</option>';
+      populateSubjects();
+    } catch (e) {
+      document.getElementById('setupError').textContent = e.message;
+      document.getElementById('setupError').classList.remove('hidden');
+    }
+  }
+
+  function populateSubjects() {
+    const classId = document.getElementById('classSelect').value;
+    const cls = classes.find(c => c._id === classId);
+    const subjectSelect = document.getElementById('subjectSelect');
+    const subjects = (cls && cls.subjects) || [];
+    subjectSelect.innerHTML = subjects.map(s => `<option value="${s._id}">${s.name} (${s.code})</option>`).join('') || '<option value="">No subjects</option>';
+  }
+  document.getElementById('classSelect').addEventListener('change', populateSubjects);
+
+  document.getElementById('startBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('startBtn');
+    const errEl = document.getElementById('setupError');
+    errEl.classList.add('hidden');
+    const classId = document.getElementById('classSelect').value;
+    const subjectId = document.getElementById('subjectSelect').value;
+    if (!classId || !subjectId) { errEl.textContent = 'Select a class and subject.'; errEl.classList.remove('hidden'); return; }
+
+    btn.disabled = true; btn.textContent = 'Starting…';
+    try {
+      const body = { classId, subjectId };
+      if (document.getElementById('useMyLocation').checked) {
+        const pos = await new Promise((res, rej) => navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true }));
+        body.latitude = pos.coords.latitude;
+        body.longitude = pos.coords.longitude;
+      }
+      const { session } = await Api.post('/teacher/session/start', body);
+      sessionId = session.id;
+      const cls = classes.find(c => c._id === classId);
+      const subj = (cls.subjects || []).find(s => s._id === subjectId);
+      document.getElementById('liveSubjectLabel').textContent = `${cls.name} — ${subj ? subj.name : ''}`;
+
+      document.getElementById('setupPanel').classList.add('hidden');
+      document.getElementById('livePanel').classList.remove('hidden');
+
+      sessionStartedAt = Date.now();
+      sessionTimerInterval = setInterval(updateSessionTimer, 1000);
+      pollQr();
+      pollAttendance();
+    } catch (e) {
+      errEl.textContent = e.message; errEl.classList.remove('hidden');
+    } finally {
+      btn.disabled = false; btn.textContent = 'Start session';
+    }
+  });
+
+  function updateSessionTimer() {
+    const secs = Math.floor((Date.now() - sessionStartedAt) / 1000);
+    const m = String(Math.floor(secs / 60)).padStart(2, '0');
+    const s = String(secs % 60).padStart(2, '0');
+    document.getElementById('sessionTimer').textContent = `${m}:${s}`;
+  }
+
+  async function pollQr() {
+    try {
+      const { qrDataUrl, expiresAt, ttlMs } = await Api.get(`/teacher/session/${sessionId}/qr`);
+      document.getElementById('qrImage').src = qrDataUrl;
+      animateBar(new Date(expiresAt).getTime(), ttlMs);
+    } catch (e) { /* session might have ended */ }
+    qrPollTimer = setTimeout(pollQr, 3000);
+  }
+
+  function animateBar(expiresAtMs, ttlMs) {
+    const bar = document.getElementById('qrTimerBar');
+    const tick = () => {
+      const remaining = Math.max(0, expiresAtMs - Date.now());
+      bar.style.width = `${Math.max(0, (remaining / ttlMs) * 100)}%`;
+      if (remaining > 0) requestAnimationFrame(tick);
+    };
+    tick();
+  }
+
+  async function pollAttendance() {
+    try {
+      const { records, presentCount } = await Api.get(`/teacher/session/${sessionId}/attendance`);
+      document.getElementById('presentCount').textContent = presentCount;
+      const list = document.getElementById('studentList');
+      list.innerHTML = records.length ? records.map(r => `
+        <div class="py-2.5 flex items-center justify-between text-sm">
+          <span>${r.studentId ? r.studentId.name : 'Student'} <span style="color:var(--muted);">(${r.studentId ? r.studentId.studentId : ''})</span></span>
+          <span style="color:var(--muted);">${new Date(r.timestamp).toLocaleTimeString()}</span>
+        </div>
+      `).join('') : '<p class="text-sm" style="color:var(--muted);">No students yet.</p>';
+    } catch (e) {}
+    attendancePollTimer = setTimeout(pollAttendance, 4000);
+  }
+
+  document.getElementById('stopBtn').addEventListener('click', async () => {
+    if (!confirm('Stop this attendance session?')) return;
+    clearTimeout(qrPollTimer); clearTimeout(attendancePollTimer); clearInterval(sessionTimerInterval);
+    try { await Api.post(`/teacher/session/${sessionId}/stop`, {}); } catch (e) {}
+    window.location.reload();
+  });
+
+  loadClasses();
+</script>
+</body>
+</html>
