@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: qr-attendance-backend
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: QR_TOKEN_TTL_SECONDS
+        value: 25
+      - key: SESSION_MAX_DURATION_MINUTES
+        value: 60
+      - key: DEFAULT_ALLOWED_RADIUS_METERS
+        value: 60
+      - key: FACE_MATCH_THRESHOLD
+        value: 0.45
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
